@@ -1,0 +1,204 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CGT Calculator</title>
+    <script>// Array to store purchases (in FIFO order)
+        let purchaseHistory = [];
+
+        function calculateCGT() {
+            // Get the inputs from the form
+            const shares = parseInt(document.getElementById('shares').value);
+            const company = document.getElementById('company').value;
+            const costPrice = parseFloat(document.getElementById('cost').value); // Cost price per share
+            const purchaseDate = new Date(document.getElementById('purchaseDate').value); // Date when shares were purchased
+            const totalSaleAmount = parseFloat(document.getElementById('totalSaleAmount').value); // Total sale amount
+            const saleDate = new Date(document.getElementById('saleDate').value); // Date when shares were sold
+            const method = document.querySelector('input[name="method"]:checked').value; // FIFO, LIFO, or Lowest Cost
+            const taxRate = parseFloat(document.getElementById('taxRate').value) / 100 || 0; // Tax rate in percentage
+
+            // Validate input
+            if (isNaN(shares) || isNaN(costPrice) || isNaN(totalSaleAmount) || !purchaseDate || !saleDate) {
+                alert("Please enter valid values.");
+                return;
+            }
+
+            // Record the purchase (this is for adding a purchase, not a sale)
+            purchaseHistory.push({
+                shares: shares,
+                company: company,
+                costPrice: costPrice,
+                purchaseDate: purchaseDate,
+                totalAmount: costPrice * shares // Total purchase amount
+            });
+
+            // Calculate the capital gain or loss using the selected method
+            let capitalGainOrLoss = calculateCapitalGain(shares, totalSaleAmount, method);
+
+            // Calculate the tax based on the capital gain
+            let taxOwed = capitalGainOrLoss > 0 ? capitalGainOrLoss * taxRate : 0;
+
+            // Prepare the result message
+            let resultMessage = `<h3>Calculation Result</h3>`;
+            resultMessage += `<p>You bought <strong>${shares}</strong> shares of <strong>${company}</strong> at $${costPrice.toFixed(2)} each.</p>`;
+            resultMessage += `<p>You sold them for a total of $${totalSaleAmount.toFixed(2)}.</p>`;
+            resultMessage += `<p><strong>Capital Gain/Loss:</strong> $${capitalGainOrLoss.toFixed(2)}</p>`;
+            resultMessage += `<p><strong>Tax Owed:</strong> $${taxOwed.toFixed(2)}</p>`;
+
+            // Display the result on the page
+            document.getElementById('result').innerHTML = resultMessage;
+
+            // Show the list of transactions (purchases and sales)
+            displayTransactions();
+        }
+
+        // Function to calculate capital gain based on selected method (FIFO, LIFO, or Lowest Cost)
+        function calculateCapitalGain(shares, totalSaleAmount, method) {
+            let capitalGainOrLoss = 0;
+            let remainingShares = shares;
+
+            // Make a copy of purchaseHistory for sale calculation
+            let purchases = [...purchaseHistory];
+
+            // Sort purchases based on method
+            if (method === 'FIFO') {
+                purchases.sort((a, b) => a.purchaseDate - b.purchaseDate); // Sort by oldest first (FIFO)
+            } else if (method === 'LIFO') {
+                purchases.sort((a, b) => b.purchaseDate - a.purchaseDate); // Sort by newest first (LIFO)
+            } else if (method === 'LowestCost') {
+                purchases.sort((a, b) => a.costPrice - b.costPrice); // Sort by cheapest purchase first (Lowest Cost)
+            }
+
+            // Sale price per share is totalSaleAmount divided by the number of shares
+            const salePricePerShare = totalSaleAmount / shares;
+
+            // Iterate over the purchases and calculate the capital gain/loss
+            for (let i = 0; i < purchases.length && remainingShares > 0; i++) {
+                const purchase = purchases[i];
+
+                // If there are more shares to sell than the purchase batch
+                if (remainingShares >= purchase.shares) {
+                    capitalGainOrLoss += (purchase.shares * salePricePerShare) - (purchase.shares * purchase.costPrice); // Calculate gain/loss for full batch
+                    remainingShares -= purchase.shares;
+                } else {
+                    // If there are fewer shares to sell than the purchase batch
+                    capitalGainOrLoss += (remainingShares * salePricePerShare) - (remainingShares * purchase.costPrice);
+                    purchase.shares -= remainingShares;
+                    remainingShares = 0;
+                }
+            }
+
+            return capitalGainOrLoss;
+        }
+
+        // Function to display the list of transactions
+        function displayTransactions() {
+            let transactionList = '<h3>Transactions List</h3>';
+            transactionList += `<table border="1" cellpadding="5"><tr><th>Company</th><th>Shares</th><th>Cost Price</th><th>Purchase Date</th><th>Total Amount</th></tr>`;
+
+            // Loop through purchaseHistory and display it
+            purchaseHistory.forEach(purchase => {
+                transactionList += `
+            <tr>
+                <td>${purchase.company}</td>
+                <td>${purchase.shares}</td>
+                <td>$${purchase.costPrice.toFixed(2)}</td>
+                <td>${purchase.purchaseDate.toLocaleDateString()}</td>
+                <td>$${purchase.totalAmount.toFixed(2)}</td>
+            </tr>
+        `;
+            });
+
+            transactionList += `</table>`;
+            document.getElementById('transactions').innerHTML = transactionList;
+        }</script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+
+        h1 {
+            font-size: 24px;
+        }
+
+        form {
+            margin-bottom: 20px;
+        }
+
+        label {
+            font-size: 16px;
+        }
+
+        input {
+            margin: 5px 0 15px;
+            padding: 8px;
+            font-size: 16px;
+        }
+
+        button {
+            font-size: 16px;
+            padding: 10px 20px;
+        }
+
+        #result, #transactions {
+            margin-top: 20px;
+            padding: 20px;
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+            font-size: 16px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 10px;
+            text-align: right;
+        }
+
+        th {
+            background-color: #f2f2f2;
+        }
+    </style>
+</head>
+<body>
+    <h1>Capital Gains Tax (CGT) Calculator</h1>
+    <form id="cgtForm">
+        <label for="shares">Number of Shares:</label>
+        <input type="number" id="shares" required><br><br>
+
+        <label for="company">Company Name:</label>
+        <input type="text" id="company" required><br><br>
+
+        <label for="cost">Cost Price per Share ($):</label>
+        <input type="number" step="0.01" id="cost" required><br><br>
+
+        <label for="purchaseDate">Purchase Date:</label>
+        <input type="date" id="purchaseDate" required><br><br>
+
+        <label for="totalSaleAmount">Total Sale Amount ($):</label>
+        <input type="number" step="0.01" id="totalSaleAmount" required><br><br>
+
+        <label for="saleDate">Sale Date:</label>
+        <input type="date" id="saleDate" required><br><br>
+
+        <label for="taxRate">Tax Rate (%):</label>
+        <input type="number" id="taxRate" step="0.1" required><br><br>
+
+        <label for="method">Sale Method:</label><br>
+        <input type="radio" id="FIFO" name="method" value="FIFO" checked> FIFO
+        <input type="radio" id="LIFO" name="method" value="LIFO"> LIFO
+        <input type="radio" id="LowestCost" name="method" value="LowestCost"> Lowest Cost<br><br>
+
+        <button type="button" onclick="calculateCGT()">Calculate CGT</button>
+    </form>
+
+    <!-- Display the result and transactions -->
+    <div id="result"></div>
+    <div id="transactions"></div>
+</body>
+</html>
